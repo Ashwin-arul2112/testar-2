@@ -8,23 +8,28 @@ import * as THREE from "three"
 
 const store = createXRStore()
 
-/* -------- START AR -------- */
+/* ---------- START AR ---------- */
 
 const startAR = async () => {
   if(!navigator.xr) return
   await store.enterAR()
 }
 
-/* -------- MODEL -------- */
+/* ---------- MODEL ---------- */
 
-function FloatingModel(){
+function InteractiveModel(){
 
   const ref = useRef<any>(null)
   const { scene } = useGLTF("/models/model.glb")
   const { camera } = useThree()
 
   const [placed,setPlaced] = useState(false)
+  const [scale,setScale] = useState(0.3)
 
+  let lastX = 0
+  let lastDist = 0
+
+  /* PLACE IN AIR */
   const placeObject = () => {
 
     if(!ref.current) return
@@ -40,19 +45,56 @@ function FloatingModel(){
     setPlaced(true)
   }
 
+  /* TOUCH MOVE */
+  const onTouchMove = (e:any)=>{
+
+    if(!placed) return
+    if(!ref.current) return
+
+    /* MOVE */
+    if(e.touches.length===1){
+
+      const dx = e.touches[0].clientX - lastX
+      ref.current.position.x += dx*0.002
+      lastX = e.touches[0].clientX
+    }
+
+    /* PINCH SCALE */
+    if(e.touches.length===2){
+
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.sqrt(dx*dx + dy*dy)
+
+      if(lastDist){
+
+        const diff = dist-lastDist
+        setScale(prev=>Math.max(0.1,prev+diff*0.0005))
+      }
+
+      lastDist = dist
+    }
+  }
+
+  /* TWO FINGER ROTATE */
+  const onWheel = ()=>{
+    if(ref.current) ref.current.rotation.y += 0.2
+  }
+
   return(
     <primitive
       ref={ref}
       object={scene}
-      scale={0.3}
+      scale={scale}
       visible={placed}
       onPointerDown={placeObject}
-      onClick={()=>ref.current.rotation.y += 0.5}
+      onTouchMove={onTouchMove}
+      onDoubleClick={onWheel}
     />
   )
 }
 
-/* -------- MAIN -------- */
+/* ---------- MAIN ---------- */
 
 export default function ARScene(){
 
@@ -76,7 +118,7 @@ export default function ARScene(){
       <Canvas>
         <XR store={store}>
           <ambientLight intensity={1}/>
-          <FloatingModel/>
+          <InteractiveModel/>
         </XR>
       </Canvas>
     </>
