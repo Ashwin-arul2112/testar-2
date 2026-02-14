@@ -10,7 +10,7 @@ const store = createXRStore()
 
 function InteractiveModel({ position }: any) {
 
-  const ref = useRef<any>()
+  const ref = useRef<any>(null)
   const { scene } = useGLTF("/models/model.glb")
 
   const [scale,setScale] = useState(0.3)
@@ -64,7 +64,7 @@ function Reticle({ setPos }: any) {
 
   const { session } = useXR()
   const { camera } = useThree()
-  const ref = useRef<any>()
+  const ref = useRef<any>(null)
 
   useFrame(async () => {
 
