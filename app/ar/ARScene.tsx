@@ -7,13 +7,13 @@ import { useGLTF } from "@react-three/drei"
 import * as THREE from "three"
 
 /* ---------- XR STORE ---------- */
-/* Hit-test must be defined HERE in v10 */
+
 const store = createXRStore({
   requiredFeatures: ["hit-test", "local-floor"]
 } as any)
 
 /* ---------- START AR ---------- */
-/* XR v10 → enterAR TAKES NO ARGUMENT */
+
 const startAR = async () => {
   if (!navigator.xr) return
   await store.enterAR()
@@ -42,7 +42,7 @@ function InteractiveModel({ position }: any) {
 
 /* ---------- RETICLE ---------- */
 
-function Reticle({ setPos }: any) {
+function Reticle({ placeModel }: any) {
 
   const { session } = useXR()
 
@@ -91,16 +91,22 @@ function Reticle({ setPos }: any) {
           pose.transform.position.y,
           pose.transform.position.z
         )
-
-        setPos(ref.current.position.clone())
       }
     }
   })
 
   return(
-    <mesh ref={ref} visible={false}>
+    <mesh
+      ref={ref}
+      visible={false}
+      onClick={()=>{
+        if(ref.current){
+          placeModel(ref.current.position.clone())
+        }
+      }}
+    >
       <ringGeometry args={[0.1,0.15,32]}/>
-      <meshBasicMaterial />
+      <meshBasicMaterial color="white"/>
     </mesh>
   )
 }
@@ -110,11 +116,9 @@ function Reticle({ setPos }: any) {
 export default function ARScene(){
 
   const [pos,setPos] = useState<any>(null)
-  const [placed,setPlaced] = useState(false)
 
   return(
     <>
-      {/* MANUAL START BUTTON */}
       <button
         onClick={startAR}
         style={{
@@ -135,16 +139,9 @@ export default function ARScene(){
 
           <ambientLight intensity={1}/>
 
-          {!placed && <Reticle setPos={setPos}/>}
+          {!pos && <Reticle placeModel={setPos}/>}
 
-          {pos && !placed && (
-            <mesh onClick={()=>setPlaced(true)}>
-              <ringGeometry args={[0.1,0.15,32]}/>
-              <meshBasicMaterial />
-            </mesh>
-          )}
-
-          {placed && <InteractiveModel position={pos}/>}
+          {pos && <InteractiveModel position={pos}/>}
 
         </XR>
       </Canvas>
