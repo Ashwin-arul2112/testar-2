@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Canvas, useFrame } from "@react-three/fiber"
-import { XR, ARButton, createXRStore, useXR } from "@react-three/xr"
+import { XR, createXRStore, useXR } from "@react-three/xr"
 import { useGLTF } from "@react-three/drei"
 import * as THREE from "three"
 
@@ -15,38 +15,8 @@ function InteractiveModel({ position }: any) {
   const ref = useRef<any>(null)
   const { scene } = useGLTF("/models/model.glb")
 
-  const [scale, setScale] = useState(0.3)
-  const [rotation, setRotation] = useState(0)
-
-  let lastX = 0
-  let lastDist = 0
-
-  const onTouchMove = (e:any)=>{
-
-    if(!ref.current) return
-
-    if(e.touches.length===1){
-
-      const dx = e.touches[0].clientX - lastX
-      ref.current.position.x += dx*0.001
-      lastX = e.touches[0].clientX
-    }
-
-    if(e.touches.length===2){
-
-      const dx = e.touches[0].clientX - e.touches[1].clientX
-      const dy = e.touches[0].clientY - e.touches[1].clientY
-
-      const dist = Math.sqrt(dx*dx + dy*dy)
-
-      if(lastDist){
-        const diff = dist-lastDist
-        setScale(prev=>prev+diff*0.0005)
-      }
-
-      lastDist = dist
-    }
-  }
+  const [scale,setScale] = useState(0.3)
+  const [rotation,setRotation] = useState(0)
 
   return (
     <primitive
@@ -56,7 +26,6 @@ function InteractiveModel({ position }: any) {
       scale={scale}
       rotation={[0,rotation,0]}
       onClick={()=>setRotation(prev=>prev+0.5)}
-      onTouchMove={onTouchMove}
     />
   )
 }
@@ -69,40 +38,41 @@ function Reticle({ setPos }: any) {
 
   const ref = useRef<any>(null)
   const hitTestSource = useRef<any>(null)
+  const viewerSpace = useRef<any>(null)
 
-  useEffect(() => {
+  useEffect(()=>{
 
-    if (!session) return
+    if(!session) return
 
     const xrSession = session as XRSession
 
-    xrSession.requestReferenceSpace("viewer").then((space) => {
+    xrSession.requestReferenceSpace("viewer").then((space)=>{
 
-  const hitTest = (xrSession as any).requestHitTestSource
+      viewerSpace.current = space
 
-  if(!hitTest) return
+      ;(xrSession as any).requestHitTestSource({space}).then((source:any)=>{
+        hitTestSource.current = source
+      })
 
-  hitTest.call(xrSession, { space }).then((source:any) => {
-    hitTestSource.current = source
-  })
+    })
 
-})
+  },[session])
 
-  }, [session])
+  useFrame((state,delta,frame)=>{
 
-  useFrame((state, delta, frame) => {
+    if(!frame) return
+    if(!hitTestSource.current) return
 
-    if (!frame) return
-    if (!hitTestSource.current) return
+    const refSpace = store.getState().originReferenceSpace
+    if(!refSpace) return
 
-    const refSpace = store.getState().referenceSpace
     const hits = frame.getHitTestResults(hitTestSource.current)
 
-    if (hits.length > 0) {
+    if(hits.length>0){
 
       const pose = hits[0].getPose(refSpace)
 
-      if (pose && ref.current) {
+      if(pose && ref.current){
 
         ref.current.visible = true
 
@@ -117,7 +87,7 @@ function Reticle({ setPos }: any) {
     }
   })
 
-  return (
+  return(
     <mesh ref={ref} visible={false}>
       <ringGeometry args={[0.1,0.15,32]}/>
       <meshBasicMaterial color="white"/>
@@ -125,41 +95,60 @@ function Reticle({ setPos }: any) {
   )
 }
 
-/* ---------------- MAIN SCENE ---------------- */
+/* ---------------- MAIN ---------------- */
 
 export default function ARScene(){
 
   const [pos,setPos] = useState<any>(null)
   const [placed,setPlaced] = useState(false)
 
+  const startAR = async()=>{
+
+    if(!navigator.xr) return
+
+    const session = await navigator.xr.requestSession("immersive-ar",{
+      requiredFeatures:["hit-test","local-floor"]
+    })
+
+    await store.enterAR()   // ✅ NO ARGUMENT HERE
+  }
+
   return(
     <>
 
-    <ARButton
-      store={store}
-      sessionInit={{
-        requiredFeatures:["hit-test","local-floor"]
-      }}
-    />
+      <button
+        onClick={startAR}
+        style={{
+          position:"absolute",
+          top:20,
+          left:20,
+          zIndex:10,
+          padding:12,
+          background:"black",
+          color:"white"
+        }}
+      >
+        START AR
+      </button>
 
-    <Canvas>
-      <XR store={store}>
+      <Canvas>
+        <XR store={store}>
 
-        <ambientLight intensity={1}/>
+          <ambientLight intensity={1}/>
 
-        {!placed && <Reticle setPos={setPos}/>}
+          {!placed && <Reticle setPos={setPos}/>}
 
-        {pos && !placed && (
-          <mesh onClick={()=>setPlaced(true)}>
-            <ringGeometry args={[0.1,0.15,32]}/>
-            <meshBasicMaterial color="green"/>
-          </mesh>
-        )}
+          {pos && !placed && (
+            <mesh onClick={()=>setPlaced(true)}>
+              <ringGeometry args={[0.1,0.15,32]}/>
+              <meshBasicMaterial color="green"/>
+            </mesh>
+          )}
 
-        {placed && <InteractiveModel position={pos}/>}
+          {placed && <InteractiveModel position={pos}/>}
 
-      </XR>
-    </Canvas>
+        </XR>
+      </Canvas>
 
     </>
   )
