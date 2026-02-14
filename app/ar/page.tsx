@@ -2,10 +2,10 @@
 
 import dynamic from "next/dynamic"
 
-const ARScene = dynamic(() => import("./ARScene"), {
-  ssr: false
+const ARScene = dynamic(()=>import("./ARScene"),{
+  ssr:false
 })
 
-export default function ARPage() {
+export default function ARPage(){
   return <ARScene/>
 }

@@ -1,14 +1,13 @@
-"use client"
-
 export default function Home() {
   return (
-    <div className="h-screen flex justify-center items-center">
-      <button
-        onClick={()=>window.location.href="/ar"}
-        className="bg-black text-white px-6 py-3 rounded-xl"
-      >
-        Start AR
-      </button>
-    </div>
+    <main style={{padding:20}}>
+      <h1>WebXR Surface AR Demo</h1>
+
+      <a href="/ar">
+        <button style={{padding:20,fontSize:20}}>
+          Start AR
+        </button>
+      </a>
+    </main>
   )
 }
