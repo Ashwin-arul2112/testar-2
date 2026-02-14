@@ -1,5 +1,5 @@
 "use client"
-
+import { useEffect } from "react"
 import { Canvas, useFrame, useThree } from "@react-three/fiber"
 import { XR, ARButton, createXRStore, useXR } from "@react-three/xr"
 import { useGLTF } from "@react-three/drei"
@@ -63,38 +63,48 @@ function InteractiveModel({ position }: any) {
 function Reticle({ setPos }: any) {
 
   const { session } = useXR()
-  const { camera } = useThree()
   const ref = useRef<any>(null)
+  const hitTestSource = useRef<any>(null)
+  const viewerSpace = useRef<any>(null)
 
-  useFrame(async () => {
+  useEffect(() => {
 
     if (!session) return
 
-    const viewer = await session.requestReferenceSpace("viewer")
-    const hitSource = await session.requestHitTestSource({space: viewer})
-
-    session.requestAnimationFrame((time, frame) => {
-
-      const refSpace = store.getState().referenceSpace
-      const hits = frame.getHitTestResults(hitSource)
-
-      if (hits.length > 0) {
-
-        const pose = hits[0].getPose(refSpace)
-
-        if (pose) {
-
-          ref.current.visible = true
-          ref.current.position.set(
-            pose.transform.position.x,
-            pose.transform.position.y,
-            pose.transform.position.z
-          )
-
-          setPos(ref.current.position.clone())
-        }
-      }
+    session.requestReferenceSpace("viewer").then((space) => {
+      viewerSpace.current = space
+      session.requestHitTestSource({ space }).then((source) => {
+        hitTestSource.current = source
+      })
     })
+
+  }, [session])
+
+  useFrame((state, delta, frame) => {
+
+    if (!frame) return
+    if (!hitTestSource.current) return
+
+    const refSpace = store.getState().referenceSpace
+    const hits = frame.getHitTestResults(hitTestSource.current)
+
+    if (hits.length > 0) {
+
+      const pose = hits[0].getPose(refSpace)
+
+      if (pose && ref.current) {
+
+        ref.current.visible = true
+
+        ref.current.position.set(
+          pose.transform.position.x,
+          pose.transform.position.y,
+          pose.transform.position.z
+        )
+
+        setPos(ref.current.position.clone())
+      }
+    }
   })
 
   return (
@@ -102,41 +112,5 @@ function Reticle({ setPos }: any) {
       <ringGeometry args={[0.1, 0.15, 32]} />
       <meshBasicMaterial color="white" />
     </mesh>
-  )
-}
-
-export default function ARScene() {
-
-  const [pos,setPos] = useState<any>(null)
-  const [placed,setPlaced] = useState(false)
-
-  return (
-    <>
-      <ARButton
-        store={store}
-        sessionInit={{
-          requiredFeatures:["hit-test","local-floor"]
-        }}
-      />
-
-      <Canvas>
-        <XR store={store}>
-
-          <ambientLight intensity={1} />
-
-          {!placed && <Reticle setPos={setPos}/>}
-
-          {pos && !placed && (
-            <mesh onClick={()=>setPlaced(true)}>
-              <ringGeometry args={[0.1,0.15,32]}/>
-              <meshBasicMaterial color="green"/>
-            </mesh>
-          )}
-
-          {placed && <InteractiveModel position={pos}/>}
-
-        </XR>
-      </Canvas>
-    </>
   )
 }
