@@ -78,11 +78,15 @@ function Reticle({ setPos }: any) {
 
     xrSession.requestReferenceSpace("viewer").then((space) => {
 
-      xrSession.requestHitTestSource({ space }).then((source) => {
-        hitTestSource.current = source
-      })
+  const hitTest = (xrSession as any).requestHitTestSource
 
-    })
+  if(!hitTest) return
+
+  hitTest.call(xrSession, { space }).then((source:any) => {
+    hitTestSource.current = source
+  })
+
+})
 
   }, [session])
 
