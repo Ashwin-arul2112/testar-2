@@ -1,12 +1,14 @@
 "use client"
 
-import { Canvas, useThree } from "@react-three/fiber"
-import { XR, createXRStore } from "@react-three/xr"
+import { Canvas, useFrame } from "@react-three/fiber"
+import { XR, createXRStore, useXR } from "@react-three/xr"
 import { useGLTF } from "@react-three/drei"
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import * as THREE from "three"
 
-const store = createXRStore()
+const store = createXRStore({
+  requiredFeatures:["hit-test","local-floor"]
+} as any)
 
 /* ---------- START AR ---------- */
 
@@ -15,81 +17,84 @@ const startAR = async () => {
   await store.enterAR()
 }
 
-/* ---------- MODEL ---------- */
+/* ---------- WORLD LOCKED MODEL ---------- */
 
-function InteractiveModel(){
+function WorldLockedModel(){
 
   const ref = useRef<any>(null)
   const { scene } = useGLTF("/models/model.glb")
-  const { camera } = useThree()
+  const { session } = useXR()
 
   const [placed,setPlaced] = useState(false)
-  const [scale,setScale] = useState(0.3)
+  const hitTestSource = useRef<any>(null)
 
-  let lastX = 0
-  let lastDist = 0
+  /* CREATE INVISIBLE RAY SOURCE */
+  useEffect(()=>{
 
-  /* PLACE IN AIR */
-  const placeObject = () => {
+    if(!session) return
 
-    if(!ref.current) return
+    const xrSession = session as XRSession
 
-    const dir = new THREE.Vector3(0,0,-1)
-      .applyQuaternion(camera.quaternion)
+    xrSession.requestReferenceSpace("viewer").then((viewerSpace)=>{
 
-    const pos = new THREE.Vector3()
-      .copy(camera.position)
-      .add(dir.multiplyScalar(1.5))
+      const hitTest = (xrSession as any).requestHitTestSource
+      if(!hitTest) return
 
-    ref.current.position.copy(pos)
-    setPlaced(true)
-  }
+      hitTest.call(xrSession,{
+        space:viewerSpace
+      }).then((source:any)=>{
+        hitTestSource.current = source
+      })
 
-  /* TOUCH MOVE */
-  const onTouchMove = (e:any)=>{
+    })
 
-    if(!placed) return
-    if(!ref.current) return
+  },[session])
 
-    /* MOVE */
-    if(e.touches.length===1){
+  /* TAP ANYWHERE TO PLACE */
 
-      const dx = e.touches[0].clientX - lastX
-      ref.current.position.x += dx*0.002
-      lastX = e.touches[0].clientX
-    }
+  const placeObject = (frame:any)=>{
 
-    /* PINCH SCALE */
-    if(e.touches.length===2){
+    if(!frame) return
+    if(!hitTestSource.current) return
 
-      const dx = e.touches[0].clientX - e.touches[1].clientX
-      const dy = e.touches[0].clientY - e.touches[1].clientY
-      const dist = Math.sqrt(dx*dx + dy*dy)
+    const refSpace = store.getState().originReferenceSpace as XRReferenceSpace
+    if(!refSpace) return
 
-      if(lastDist){
+    const hits = frame.getHitTestResults(hitTestSource.current)
 
-        const diff = dist-lastDist
-        setScale(prev=>Math.max(0.1,prev+diff*0.0005))
+    if(hits.length>0){
+
+      const pose = hits[0].getPose(refSpace)
+
+      if(pose && ref.current){
+
+        ref.current.position.set(
+          pose.transform.position.x,
+          pose.transform.position.y,
+          pose.transform.position.z
+        )
+
+        setPlaced(true)
       }
-
-      lastDist = dist
     }
   }
 
-  /* TWO FINGER ROTATE */
-  const onWheel = ()=>{
-    if(ref.current) ref.current.rotation.y += 0.2
-  }
+  /* FRAME LOOP */
+  useFrame((_,__,frame)=>{
+
+    if(!placed){
+      placeObject(frame)
+    }
+
+  })
 
   return(
     <primitive
       ref={ref}
       object={scene}
-      scale={scale}
+      scale={0.3}
       visible={placed}
-      onPointerDown={placeObject}
-      onTouchMove={onTouchMove}
-      onDoubleClick={onWheel}
+      onClick={()=>ref.current.rotation.y += 0.5}
     />
   )
 }
@@ -118,7 +123,7 @@ export default function ARScene(){
       <Canvas>
         <XR store={store}>
           <ambientLight intensity={1}/>
-          <InteractiveModel/>
+          <WorldLockedModel/>
         </XR>
       </Canvas>
     </>
