@@ -22,7 +22,7 @@ const startAR = async () => {
 function WorldLockedModel(){
 
   const ref = useRef<any>(null)
-  const { scene } = useGLTF("/models/model.glb")
+  const { scene } = useGLTF("/models/wand.glb")
   const { session } = useXR()
 
   const [placed,setPlaced] = useState(false)
